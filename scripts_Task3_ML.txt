@@ -1,0 +1,216 @@
+############################################################################
+#####################  MACHINE LEARNING: ASSIGNMENT 3  #####################
+#####################        SPATIAL STATISTICS        #####################
+############################################################################
+
+library(spatstat)
+library(dplyr)
+library(tidyr)
+
+#################### PREPARATION OF THE DATA ####################
+
+setwd("<my_path>/Azteca_data")
+tree_nests<- read.csv("Tree_nests.csv", na.strings="")
+View(tree_nests)
+dim(tree_nests)
+summary(tree_nests)
+tree_nests<-tree_nests[,c(1,2,3)] # to keep only 3 columns
+
+df1 <-tree_nests %>% filter(UTM_y >= 1677241)
+dim(df1) # 1918 x 3
+df2 <-tree_nests %>% filter(UTM_y < 1677241)
+dim(df2) # 10569 x 3
+
+#################### RECONSTRUCTION OF THE POINT PATTERN ####################
+
+R1<-ripras(df1$UTM_x, df1$UTM_y, shape = "convex")
+R2<-ripras(df2$UTM_x, df2$UTM_y, shape = "convex")
+RT<-union.owin(R1,R2)
+plot(RT)
+area(RT) # to get the area of the window
+
+ppp <- ppp(tree_nests$UTM_x, tree_nests$UTM_y, window = RT, marks = tree_nests[,3])
+
+ppp<-rescale(ppp, 1e03, "kilometer")
+
+anyDuplicated(ppp) # TRUE
+summary(ppp)
+ppp<-unique(ppp) # this removes duplicated spatial points
+summary(ppp)
+
+is.multitype(ppp) # TRUE
+levels(marks(ppp))
+
+# to plot the point pattern (overall and split by point type)
+plot(ppp, cols = c("blue","red","green"), main = "", cex=0.5)
+plot(split(ppp), main = "", cex=0.5)
+
+
+#################### EXPLORATORY ANALYSIS ####################
+
+# average intensity per unit area & standard error
+intensity(ppp) # per point type
+sqrt(intensity(ppp)/area(Window(ppp)))
+
+intensity(unmark(ppp)) # overall
+sqrt((intensity(unmark(ppp))/area(Window(ppp))))
+
+# quadrat counting (30 x 30 grid)
+Q <- quadratcount(ppp, nx=30, ny=30)
+Q 
+
+I <- intensity(Q) # average intensity in each quadrat
+plot(intensity(Q, image = TRUE)) # plot of the avg. intensity per quadrat
+
+quadrat.test(ppp, nx=30, ny=30, method="MonteCarlo")
+quadrat.test(split(ppp), nx=30, ny=30, method="MonteCarlo")
+
+# Kolmogorov-Smirnov test of CSR using a function of x and y
+KS <- cdf.test(ppp, function(x, y) {
+     x + y }, test="ks")
+KS
+plot(KS, xlab = "function(x,y) = x + y", main = "All point types")
+
+KS_0 <- cdf.test(split(ppp)$"0", function(x, y) {
+     x + y }, test="ks")
+KS_0
+plot(KS_0, xlab = "function(x,y) = x + y", main = "0")
+
+KS_1 <- cdf.test(split(ppp)$"1", function(x, y) {
+     x + y }, test="ks")
+KS_1
+plot(KS_1, xlab = "function(x,y) = x + y", main = "1")
+
+KS_NA <- cdf.test(split(ppp)$"NA", function(x, y) {
+     x + y }, test="ks")
+KS_NA
+plot(KS_0, xlab = "function(x,y) = x + y", main = "NA")
+
+# to apply the kernel smoother of point density and add contour plots (overall and split by point type)
+plot(density(ppp), main="All types of point")
+contour(density(ppp), main = "All types of point", add=TRUE)
+
+plot(density(split(ppp)$"0"), main="0")
+contour(density(split(ppp)$"0"), main = "0", add=TRUE)
+
+plot(density(split(ppp)$"1"), main="1")
+contour(density(split(ppp)$"1"), main = "1", add=TRUE)
+
+plot(density(split(ppp)$"NA"), main="NA")
+contour(density(split(ppp)$"NA"), main = "NA", add=TRUE)
+
+# probability of each type (assuming a stationary multitype Poisson process):
+lambda <- intensity(ppp)
+probs <- lambda/sum(lambda)
+probs
+
+# relative risk
+ProbU <- relrisk(ppp)
+plot(ProbU)
+ProbD <- relrisk(ppp, diggle=TRUE) # Diggle's edge correction
+plot(ProbD)
+
+# to determine and plot the dominant point type in each pixel
+dominant <- im.apply(ProbD, which.max)
+type <- levels(marks(ppp))
+dominant <- eval.im(factor(dominant, levels=1:3, labels=type))
+plot(dominant) # most likely mark at each location
+
+
+#################### CORRELATION AND SPACING ####################
+
+# fryplot, to assess dependence between points (split by point type)
+fryplot(split(ppp)$"1", main = "1", cex=0.5)
+fryplot(split(ppp)$"NA", main = "NA", cex=0.5)
+rs <- sample_n(as.tbl(as.data.frame(split(ppp)$"0")),2000) # random samplinf of "0" points
+rs <- as.data.frame(rs)
+RT2 <- rescale.owin(RT, 1e3, "kilometer")
+ppp2 <- ppp(rs$x, rs$y, window = RT2)
+fryplot(ppp2, main = "0", cex=0.5)
+
+nncorr(ppp) # nearest neighbor correlation index
+marktable(ppp, N=1, collapse=TRUE) # contingence table of nearest neighbors
+
+# Multitype K-function
+Kall <- alltypes(ppp, Kcross)
+plot(Kall)
+
+Kall_pe <- alltypes(ppp, Kcross, envelope=TRUE,nsim=19) # pointwise envelopes
+plot(Kall_pe)
+
+Kall_ge <- alltypes(ppp, Kcross, envelope=TRUE,nsim=19,global=TRUE) # global envelopes
+plot(Kall_ge)
+
+# Multitype L-function
+Lall <- alltypes(ppp, Lcross)
+plot(Lall)
+
+Lall_pe <- alltypes(ppp, Lcross, envelope=TRUE,nsim=19) # pointwise envelopes
+plot(Lall_pe)
+
+Lall_ge <- alltypes(ppp, Lcross, envelope=TRUE,nsim=19,global=TRUE) # global envelopes
+plot(Lall_ge)
+
+# Multitype pair correlation function, g(r)
+pcf_all <- alltypes(ppp, pcfcross)
+plot(pcf_all)
+
+pcf_all_pe <- alltypes(ppp, pcfcross, envelope=TRUE,nsim=19) # pointwise envelopes
+plot(pcf_all_pe)
+
+pcf_all_ge <- alltypes(ppp, pcfcross, envelope=TRUE,nsim=19,global=TRUE) # global envelopes
+plot(pcf_all_ge)
+
+# Mark connection function
+plot(alltypes(ppp, markconnect))
+
+# F-function (empty-space function)
+Fall <- alltypes(ppp, Fest)
+plot(Fall)
+
+Fall_pe <- alltypes(ppp, Fest, envelope=TRUE,nsim=19) # pointwise envelopes
+plot(Fall_pe)
+
+Fall_ge <- alltypes(ppp, Fest, envelope=TRUE,nsim=19,global=TRUE) # global envelopes
+plot(Fall_ge)
+
+# Multitype G-function (nearest-neighbour distance distribution function)
+Gall <- alltypes(ppp, Gcross)
+plot(Gall)
+
+Gall_pe <- alltypes(ppp, Gcross, envelope=TRUE,nsim=19) # pointwise envelopes
+plot(Gall_pe)
+
+Gall_ge <- alltypes(ppp, Gcross, envelope=TRUE,nsim=19,global=TRUE) # global envelopes
+plot(Gall_ge)
+
+# Multitype J-function
+Jall <- alltypes(ppp, Jcross)
+plot(Jall)
+
+Jall_pe <- alltypes(ppp, Jcross, envelope=TRUE,nsim=19) # pointwise envelopes
+plot(Jall_pe)
+
+Jall_ge <- alltypes(ppp, Jcross, envelope=TRUE,nsim=19,global=TRUE) # global envelopes
+plot(Jall_ge)
+
+# Monte Carlo test of spatial segregation of the types in a multitype point pattern. 
+segregation.test(ppp, nsim=19)
+
+
+#################### MODEL FITTING ####################
+
+# Non-stationary multitype Poisson process
+fit1 <- ppm(ppp ~ marks + x + y + marks * x)
+sel1 <- step(fit1) # stepwise model selection
+summary(sel1) # summary of the model
+confint(sel1) # 95% confidence intervals
+
+# Homogeneous Poisson process without interactions among points
+fit2 <- ppm(ppp ~ 1) # this assumes that the intensities of all point types are equal
+sel2 <- step(fit2)
+summary(sel2)
+confint(sel2)
+
+# likelihood ratio test
+anova(sel2, sel1, test="LRT")
