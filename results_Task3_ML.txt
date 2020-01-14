@@ -1,0 +1,400 @@
+## EXPLORATORY ANALYSIS ##
+
+> area(RT) # area of the window (square meters)
+[1] 408833.8
+
+> area(ppp) # area of the window (square kilometers)
+[1] 0.4088338
+
+# overview of the point pattern (overall and per point type)
+> ppp 
+Marked planar point pattern: 12487 points
+Multitype, with levels = 0, 1, NA 
+window: polygonal boundary
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+> split(ppp)$"0"
+Planar point pattern: 10313 points
+window: polygonal boundary
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+> split(ppp)$"1"
+Planar point pattern: 282 points
+window: polygonal boundary
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+> split(ppp)$"NA"
+Planar point pattern: 1892 points
+window: polygonal boundary
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+
+# summary of the point pattern before/after removing duplicate points
+> summary(ppp)
+Marked planar point pattern:  12487 points
+Average intensity 30542.97 points per square kilometer
+
+*Pattern contains duplicated points*
+
+Coordinates are given to 5 decimal places
+
+Multitype:
+   frequency proportion  intensity
+0      10313 0.82589890 25225.4100
+1        282 0.02258349   689.7668
+NA      1892 0.15151760  4627.7970
+
+Window: polygonal boundary
+single connected closed polygon with 47 vertices
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+                     (0.8067 x 0.6449 kilometer)
+Window area = 0.408834 square kilometer
+Unit of length: 1 kilometer
+Fraction of frame area: 0.786
+> ppp<-unique(ppp) # this removes duplicated spatial points
+> summary(ppp)
+Marked planar point pattern:  12469 points
+Average intensity 30498.95 points per square kilometer
+
+Coordinates are given to 5 decimal places
+
+Multitype:
+   frequency proportion  intensity
+0      10302 0.82620900 25198.5000
+1        282 0.02261609   689.7668
+NA      1885 0.15117490  4610.6760
+
+Window: polygonal boundary
+single connected closed polygon with 47 vertices
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+                     (0.8067 x 0.6449 kilometer)
+Window area = 0.408834 square kilometer
+Unit of length: 1 kilometer
+Fraction of frame area: 0.786
+
+# average intensity per unit area & standard error
+> intensity(unmark(ppp))
+[1] 30498.95
+> sqrt((intensity(unmark(ppp))/area(Window(ppp))))
+[1] 273.1298
+
+> intensity(ppp)
+         0          1         NA 
+25198.5037   689.7668  4610.6755 
+> sqrt(intensity(ppp)/area(Window(ppp)))
+        0         1        NA 
+248.26413  41.07502 106.19618 
+
+# quadrat test
+> quadrat.test(ppp, nx=30, ny=30, method="MonteCarlo")
+
+	Conditional Monte Carlo test of CSR using quadrat counts
+	Test statistic: Pearson X2 statistic
+
+data:  ppp
+X2 = 1731.8, p-value = 0.001
+alternative hypothesis: two.sided
+
+Quadrats: 760 tiles (irregular windows)
+
+> quadrat.test(split(ppp), nx=30, ny=30, method="MonteCarlo")
+
+	Conditional Monte Carlo test of CSR using quadrat counts
+	Test statistic: Pearson X2 statistic
+
+data:  split(ppp)
+X2 = 5153.3, p-value = 0.001
+alternative hypothesis: two.sided
+
+Pooled test
+Quadrats of component tests:
+List of spatial objects
+
+0:
+760 tiles (irregular windows)
+
+1:
+760 tiles (irregular windows)
+
+NA:
+760 tiles (irregular windows)
+
+# Kolmogorov-Smirnov test of CSR using a function of x and y
+> KS # overall
+
+	Spatial Kolmogorov-Smirnov test of CSR in two dimensions
+
+data:  covariate ‘function(x, y) {’ evaluated at points of ‘ppp’ 
+     and transformed to uniform distribution under CSRI
+D = 0.013517, p-value = 0.021
+alternative hypothesis: two-sided
+
+> KS_0 # 0 type
+
+	Spatial Kolmogorov-Smirnov test of CSR in two dimensions
+
+data:  covariate ‘function(x, y) {’ evaluated at points of ‘split(ppp)$"0"’ 
+     and transformed to uniform distribution under CSR
+D = 0.027981, p-value = 1.973e-07
+alternative hypothesis: two-sided
+
+> KS_1 # 1 type
+
+	Spatial Kolmogorov-Smirnov test of CSR in two dimensions
+
+data:  covariate ‘function(x, y) {’ evaluated at points of ‘split(ppp)$"1"’ 
+     and transformed to uniform distribution under CSR
+D = 0.1961, p-value = 7.623e-10
+alternative hypothesis: two-sided
+
+> KS_NA # NA type
+
+	Spatial Kolmogorov-Smirnov test of CSR in two dimensions
+
+data:  covariate ‘function(x, y) {’ evaluated at points of ‘split(ppp)$"NA"’ 
+     and transformed to uniform distribution under CSR
+D = 0.073494, p-value = 2.867e-09
+alternative hypothesis: two-sided
+
+# probability of each type (assuming a stationary multitype Poisson process)
+> probs
+         0          1         NA 
+0.82620900 0.02261609 0.15117491 
+
+## ANALYSIS OF CORRELATION AND SPACING ##
+
+# nearest neighbor correlation index of a marked point process 
+> nncorr(ppp)
+unnormalised   normalised 
+   0.7365323    1.0432667 
+
+# contingence table of nearest neighbors
+> marktable(ppp, N=1, collapse=TRUE) 
+     neighbour
+point    0    1   NA
+   0  8588  138 1576
+   1   133  102   47
+   NA 1357   35  493
+
+# Monte Carlo test of spatial segregation of the types in a multitype point pattern. 
+> segregation.test(ppp, nsim=19)
+
+	Monte Carlo test of spatial segregation of types
+
+data:  ppp
+T = 0.0062631, p-value = 0.05
+
+
+## MODEL FITTING ##
+
+> fit1 <- ppm(ppp ~ marks + x + y + marks * x)
+> sel1 <- step(fit1)
+Start:  AIC=-219459.9
+~marks + x + y + marks * x
+
+          Df     AIC
+- y        1 -219461
+<none>       -219460
+- marks:x  2 -219409
+
+Step:  AIC=-219461.3
+~marks + x + marks:x
+
+          Df     AIC
+<none>       -219461
+- marks:x  2 -219411
+> summary(sel1)
+Point process model
+Fitting method: maximum likelihood (Berman-Turner approximation)
+Model was fitted using glm()
+Algorithm converged
+Call:
+ppm.formula(Q = ppp ~ marks + x + marks:x, formula = ~marks + 
+    x + y + marks * x, evaluate = FALSE)
+Edge correction: “border”
+	[border correction distance r = 0 ]
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+Quadrature scheme (Berman-Turner) = data + dummy + weights
+
+Data pattern:
+Marked planar point pattern:  12469 points
+Average intensity 30500 points per square kilometer
+Multitype:
+   frequency proportion intensity
+0      10300     0.8260     25200
+1        282     0.0226       690
+NA      1880     0.1510      4610
+
+Window: polygonal boundary
+single connected closed polygon with 47 vertices
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+                     (0.8067 x 0.6449 kilometer)
+Window area = 0.408834 square kilometer
+Unit of length: 1 kilometer
+Fraction of frame area: 0.786
+
+Dummy quadrature points:
+     230 x 230 grid of dummy points, plus 4 corner points
+     dummy spacing: 0.003507574 x 0.002803823 kilometer
+
+Original dummy parameters: =
+Marked planar point pattern:  149747 points
+Average intensity 366000 points per square kilometer
+Multitype:
+   frequency proportion intensity
+0      43800      0.292    107000
+1      53800      0.359    132000
+NA     52200      0.349    128000
+
+Window: polygonal boundary
+single connected closed polygon with 47 vertices
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+                     (0.8067 x 0.6449 kilometer)
+Window area = 0.408834 square kilometer
+Unit of length: 1 kilometer
+Fraction of frame area: 0.786
+Quadrature weights:
+     (counting weights based on 230 x 230 array of rectangular tiles)
+All weights:
+	range: [1.23e-06, 9.83e-06]	total: 1.22
+Weights on data points:
+	range: [1.23e-06, 5.56e-06]	total: 0.0557
+Weights on dummy points:
+	range: [1.23e-06, 9.83e-06]	total: 1.17
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+FITTED MODEL:
+
+Nonstationary multitype Poisson process
+Possible marks:
+0 1 NA
+---- Intensity: ----
+
+Log intensity: ~marks + x + marks:x
+
+Fitted trend coefficients:
+ (Intercept)       marks1      marksNA            x     marks1:x    marksNA:x 
+ 112.3374663 -458.6772907 -480.0638289   -0.1790653    0.7973217    0.8381192 
+
+                Estimate         S.E.      CI95.lo       CI95.hi Ztest      Zval
+(Intercept)  112.3374663  26.59780155   60.2067332  164.46819939   ***  4.223562
+marks1      -458.6772907 164.87571203 -781.8277482 -135.52683320    ** -2.781958
+marksNA     -480.0638289  68.38565392 -614.0972477 -346.03041019   *** -7.019949
+x             -0.1790653   0.04660214   -0.2704038   -0.08772677   *** -3.842426
+marks1:x       0.7973217   0.28886217    0.2311623    1.36348114    **  2.760215
+marksNA:x      0.8381192   0.11981224    0.6032915    1.07294686   ***  6.995272
+
+----------- gory details -----
+
+Fitted regular parameters (theta):
+ (Intercept)       marks1      marksNA            x     marks1:x    marksNA:x 
+ 112.3374663 -458.6772907 -480.0638289   -0.1790653    0.7973217    0.8381192 
+
+Fitted exp(theta):
+  (Intercept)        marks1       marksNA             x      marks1:x     marksNA:x 
+ 6.131147e+48 6.294825e-200 3.242859e-209  8.360513e-01  2.219588e+00  2.312014e+00 
+
+> confint(sel1) # 95% confidence interval for estimated parameters
+                   2.5 %        97.5 %
+(Intercept)   60.2067332  164.46819939
+marks1      -781.8277482 -135.52683320
+marksNA     -614.0972477 -346.03041019
+x             -0.2704038   -0.08772677
+marks1:x       0.2311623    1.36348114
+marksNA:x      0.6032915    1.07294686
+
+> fit2 <- ppm(ppp ~ 1) # this assumes that the intensities of all point types are equal, which is not true in our case!!
+> sel2 <- step(fit2)
+Start:  AIC=-205158.8
+~1
+
+> summary(sel2)
+Point process model
+Fitting method: maximum likelihood
+Model was fitted analytically
+Call:
+ppm.formula(Q = ppp ~ 1, formula = ~1)
+Edge correction: “border”
+	[border correction distance r = 0 ]
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+Quadrature scheme (Berman-Turner) = data + dummy + weights
+
+Data pattern:
+Marked planar point pattern:  12469 points
+Average intensity 30500 points per square kilometer
+Multitype:
+   frequency proportion intensity
+0      10300     0.8260     25200
+1        282     0.0226       690
+NA      1880     0.1510      4610
+
+Window: polygonal boundary
+single connected closed polygon with 47 vertices
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+                     (0.8067 x 0.6449 kilometer)
+Window area = 0.408834 square kilometer
+Unit of length: 1 kilometer
+Fraction of frame area: 0.786
+
+Dummy quadrature points:
+     230 x 230 grid of dummy points, plus 4 corner points
+     dummy spacing: 0.003507574 x 0.002803823 kilometer
+
+Original dummy parameters: =
+Marked planar point pattern:  149747 points
+Average intensity 366000 points per square kilometer
+Multitype:
+   frequency proportion intensity
+0      43800      0.292    107000
+1      53800      0.359    132000
+NA     52200      0.349    128000
+
+Window: polygonal boundary
+single connected closed polygon with 47 vertices
+enclosing rectangle: [570.3299, 571.1366] x [1676.7553, 1677.4002] kilometer
+                     (0.8067 x 0.6449 kilometer)
+Window area = 0.408834 square kilometer
+Unit of length: 1 kilometer
+Fraction of frame area: 0.786
+Quadrature weights:
+     (counting weights based on 230 x 230 array of rectangular tiles)
+All weights:
+	range: [1.23e-06, 9.83e-06]	total: 1.22
+Weights on data points:
+	range: [1.23e-06, 5.56e-06]	total: 0.0557
+Weights on dummy points:
+	range: [1.23e-06, 9.83e-06]	total: 1.17
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+FITTED MODEL:
+
+Stationary multitype Poisson process
+Possible marks:
+0 1 NA
+---- Intensity: ----
+
+
+Uniform intensity for each mark level:
+[1] 10166.32
+
+            Estimate        S.E.  CI95.lo  CI95.hi Ztest     Zval
+log(lambda) 9.226835 0.008955383 9.209283 9.244387   *** 1030.312
+
+----------- gory details -----
+
+Fitted regular parameters (theta):
+log(lambda) 
+   9.226835 
+
+Fitted exp(theta):
+log(lambda) 
+   10166.32 
+> confint(sel2)
+               2.5 %   97.5 %
+log(lambda) 9.209283 9.244387
+
+# Likelihood Ratio Test (sel2 vs. sel1)
+> anova(sel2, sel1, test="LRT")
+Analysis of Deviance Table
+
+Model 1: ~1 	 Poisson
+Model 2: ~marks + x + marks:x 	 Poisson
+  Npar Df Deviance  Pr(>Chi)    
+1    1                          
+2    6  5    14260 < 2.2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
